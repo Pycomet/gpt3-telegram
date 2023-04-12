@@ -19,7 +19,7 @@ const TIMEOUT = 60; // TODO: Timeout in minutes
 const MAX_TOKENS = 200;
 const TEMPERATURE = 0.7;
 const MODEL = "text-davinci-003";
-// const MODEL = "text-curie-001";
+// const MODEL = "gpt-3.5-turbo";
 const DEFAULT_INTRO = `You are a super advanced AI. You are talking to a human through a chat interface. Try to have a conversation with the human, while pretending to be a human yourself.`;
 
 // OpenAI API setup
@@ -99,7 +99,7 @@ bot.command("reset", async (ctx) => {
     // If the user exists in the database, fetch his message count and store it in a variable. Delete the user from the database and insert a new user with the same ID and the same message count.
     db.get(
         `SELECT * FROM users WHERE user_id = ${user_id}`,
-        async (err, row) => {
+        async (err: any, row: any) => {
             if (err) {
                 await ctx.replyWithMarkdown(`An error has occured: \`${err}\``);
                 return;
@@ -142,7 +142,7 @@ bot.command("limit", async (ctx) => {
     db.get(
         "SELECT * FROM users WHERE user_id = ?",
         [user_id],
-        async (err, row) => {
+        async (err, row: any) => {
             if (err) {
                 await ctx.replyWithMarkdown(`An error has occured: \`${err}\``);
                 return;
@@ -169,50 +169,53 @@ bot.command("save", async (ctx) => {
     // Get users ID
     const user_id = ctx.message.from.id;
     // Get the users messages from the database
-    db.get(`SELECT * FROM users WHERE user_id = ${user_id}`, (err, row) => {
-        if (err) {
-            ctx.reply(`An error has occured: ${err}`);
-            return;
-        }
-        if (!row) {
-            ctx.reply("You have not started a conversation yet!");
-            return;
-        }
-        const CHAT_MESSAGES = row.chat_messages;
-        // Create a file with the users messages
-        // Be sure that the saves folder exists do it asynchronously
-        if (!existsSync("./saves")) {
-            mkdirSync("./saves");
-        }
-        writeFile(
-            `./saves/${user_id}.txt`,
-            CHAT_MESSAGES,
-            "utf8",
-            async (error) => {
-                if (error) {
-                    await ctx.replyWithMarkdown(
-                        `An error has occured: \`${err}\``
-                    );
-                    return;
-                }
-                // Send the file to the user with a message
-                ctx.replyWithDocument(
-                    { source: `./saves/${user_id}.txt` },
-                    { caption: "Here is our chat history so far" }
-                );
-                // Delete the file after 1 minute
-                setTimeout(() => {
-                    unlink(`./saves/${user_id}.txt`, async (errorr) => {
-                        if (errorr) {
-                            await ctx.replyWithMarkdown(
-                                `An error has occured: \`${errorr}\``
-                            );
-                        }
-                    });
-                }, 1 * 60 * 1000);
+    db.get(
+        `SELECT * FROM users WHERE user_id = ${user_id}`,
+        (err, row: any) => {
+            if (err) {
+                ctx.reply(`An error has occured: ${err}`);
+                return;
             }
-        );
-    });
+            if (!row) {
+                ctx.reply("You have not started a conversation yet!");
+                return;
+            }
+            const CHAT_MESSAGES = row.chat_messages;
+            // Create a file with the users messages
+            // Be sure that the saves folder exists do it asynchronously
+            if (!existsSync("./saves")) {
+                mkdirSync("./saves");
+            }
+            writeFile(
+                `./saves/${user_id}.txt`,
+                CHAT_MESSAGES,
+                "utf8",
+                async (error) => {
+                    if (error) {
+                        await ctx.replyWithMarkdown(
+                            `An error has occured: \`${err}\``
+                        );
+                        return;
+                    }
+                    // Send the file to the user with a message
+                    ctx.replyWithDocument(
+                        { source: `./saves/${user_id}.txt` },
+                        { caption: "Here is our chat history so far" }
+                    );
+                    // Delete the file after 1 minute
+                    setTimeout(() => {
+                        unlink(`./saves/${user_id}.txt`, async (errorr) => {
+                            if (errorr) {
+                                await ctx.replyWithMarkdown(
+                                    `An error has occured: \`${errorr}\``
+                                );
+                            }
+                        });
+                    }, 1 * 60 * 1000);
+                }
+            );
+        }
+    );
 });
 
 bot.command("ask", async (ctx) => {
@@ -221,9 +224,9 @@ bot.command("ask", async (ctx) => {
     // Check if the user exists in the database
     db.get(
         `SELECT * FROM users WHERE user_id = ${user_id}`,
-        async (err, row) => {
+        async (err, row: any) => {
             if (err) {
-                await ctx.replyWithMarkdown(`An error has occured: \`${err}\``);
+                await ctx.reply(`An error has occured: \`${err}\``);
                 return;
             }
             let message_count = 0;
@@ -259,9 +262,9 @@ bot.command("ask", async (ctx) => {
                 const response = await openai.createCompletion({
                     model: MODEL,
                     prompt: request,
-                    temperature: TEMPERATURE,
-                    max_tokens: MAX_TOKENS,
-                    stop: ["\nHuman:", "\nAI:"],
+                    // temperature: TEMPERATURE,
+                    // max_tokens: MAX_TOKENS,
+                    stop: ["\nHuman:", "\nAI:", "stop"],
                 });
                 // If there is no response from the server or the response is empty, send a message to the user
                 let reply = "";
@@ -284,7 +287,7 @@ bot.command("ask", async (ctx) => {
                     [user_id]
                 );
             } else {
-                await ctx.replyWithMarkdown(
+                await ctx.reply(
                     `You have reached the message limit of \`${LIMIT}\` messages. Please wait until midnight UTC to send more messages.`
                 );
             }
@@ -300,7 +303,7 @@ bot.command("intro", async (ctx) => {
     db.get(
         "SELECT * FROM users WHERE user_id = ?",
         [user_id],
-        async (err, row) => {
+        async (err, row: any) => {
             if (err) {
                 await ctx.replyWithMarkdown(`An error has occured: \`${err}\``);
                 return;
@@ -357,7 +360,7 @@ bot.on(message("text"), async (ctx) => {
     // Check if the user exists in the database
     db.get(
         `SELECT * FROM users WHERE user_id = ${user_id}`,
-        async (err, row) => {
+        async (err, row: any) => {
             if (err) {
                 await ctx.replyWithMarkdown(`An error has occured: \`${err}\``);
                 return;
@@ -460,7 +463,7 @@ bot.on(message("text"), async (ctx) => {
 schedule("0 23 * * *", () => {
     db.run(`UPDATE users SET message_count = 0`);
     // Get the count of users in the database
-    db.get(`SELECT COUNT(*) FROM users`, (err, row) => {
+    db.get(`SELECT COUNT(*) FROM users`, (err, row: any) => {
         if (err) {
             console.log(`An error has occured: ${err}`);
             return;
