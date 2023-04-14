@@ -16,8 +16,9 @@ const { Database } = pkg;
 const LIMIT = 10; // Message limit - resets every midnight UTC
 const TIMEOUT = 60; // TODO: Timeout in minutes
 
-const MAX_TOKENS = 200;
+const MAX_TOKENS = 100;
 const TEMPERATURE = 0.7;
+const PRIORITY = 0.1;
 const MODEL = "text-davinci-003";
 // const MODEL = "gpt-3.5-turbo";
 const DEFAULT_INTRO = `You are a super advanced AI. You are talking to a human through a chat interface. Try to have a conversation with the human, while pretending to be a human yourself.`;
@@ -86,7 +87,7 @@ bot.command("help", async (ctx) => {
 
 bot.command("info", async (ctx) => {
     // List the constants
-    const info_text = `*Message limit:* \`${LIMIT}\` per day\n*Model:* \`${MODEL}\`\n*Max tokens:* \`${MAX_TOKENS}\`\n*Temperature:* \`${TEMPERATURE}\``;
+    const info_text = `*Message limit:* \`${LIMIT}\` per day\n*Model:* \`${MODEL}\`\n*Max tokens:* \`${MAX_TOKENS}\`\n*Temperature:* \`${TEMPERATURE}\`\n*Priority:* \ ${PRIORITY}`;
 
     await ctx.replyWithMarkdown(info_text);
 });
@@ -144,7 +145,7 @@ bot.command("limit", async (ctx) => {
         [user_id],
         async (err, row: any) => {
             if (err) {
-                await ctx.replyWithMarkdown(`An error has occured: \`${err}\``);
+                await ctx.reply(`An error has occured: \`${err}\``);
                 return;
             }
             if (!row) {
@@ -153,11 +154,11 @@ bot.command("limit", async (ctx) => {
             }
             const message_count = row.message_count;
             if (message_count < LIMIT) {
-                await ctx.replyWithMarkdown(
+                await ctx.reply(
                     `You have \`${LIMIT - message_count}\` messages left.`
                 );
             } else {
-                await ctx.replyWithMarkdown(
+                await ctx.reply(
                     `You have reached the message limit of \`${LIMIT}\` messages. Please wait until midnight UTC to send more messages.`
                 );
             }
@@ -262,11 +263,11 @@ bot.command("ask", async (ctx) => {
                 const response = await openai.createCompletion({
                     model: MODEL,
                     prompt: request,
-                    // temperature: TEMPERATURE,
+                    temperature: TEMPERATURE,
                     top_p: 0.1,
                     n: 1,
                     echo: true,
-                    // max_tokens: MAX_TOKENS,
+                    max_tokens: MAX_TOKENS,
                     stop: ["\nHuman:", "\nAI:", "stop"],
                 });
                 // If there is no response from the server or the response is empty, send a message to the user
@@ -365,7 +366,7 @@ bot.on(message("text"), async (ctx) => {
         `SELECT * FROM users WHERE user_id = ${user_id}`,
         async (err, row: any) => {
             if (err) {
-                await ctx.replyWithMarkdown(`An error has occured: \`${err}\``);
+                await ctx.reply(`An error has occured: \`${err}\``);
                 return;
             }
 
@@ -392,72 +393,76 @@ bot.on(message("text"), async (ctx) => {
             }
             // Check if the user has reached the message limit
             if (message_count > LIMIT) {
-                await ctx.replyWithMarkdown(
+                await ctx.reply(
                     `You have reached the message limit of \`${LIMIT}\` messages. Please wait until midnight UTC to send more messages.`
                 );
                 return;
-            }
-            // Get the users message
-            const message: string = ctx.message.text;
-            // If the message is empty, send a message to the user
-            if (message.trim() === "") {
-                await ctx.replyWithMarkdown(
-                    "Please send a message that is not empty. How did you even manage to do that?"
-                );
-                return;
-            }
-            // Format the request to OpenAI (if the user is new, send a intro message too)
-            let request = "";
-            // If the user has a custom intro, use that. If not, use the default intro. Also if the user has sent messages before, add them to the request. If not, do not add them to the request.
-            if (chat_messages === "") {
-                request = `${intro}\nHuman: ${message}\nAI:`;
             } else {
-                request = `${intro}\n${chat_messages}\nHuman: ${message}\nAI:`;
-            }
+                // Get the users message
+                const message: string = ctx.message.text;
+                // If the message is empty, send a message to the user
+                if (message.trim() === "") {
+                    await ctx.reply(
+                        "Please send a message that is not empty. How did you even manage to do that?"
+                    );
+                    return;
+                }
+                // Format the request to OpenAI (if the user is new, send a intro message too)
+                let request = "";
+                // If the user has a custom intro, use that. If not, use the default intro. Also if the user has sent messages before, add them to the request. If not, do not add them to the request.
+                if (chat_messages === "") {
+                    request = `${intro}\nHuman: ${message}\nAI:`;
+                } else {
+                    request = `${intro}\n${chat_messages}\nHuman: ${message}\nAI:`;
+                }
 
-            // Send a typing action to the user
-            ctx.sendChatAction("typing");
-            // Send the message to OpenAI
-            // For debugging purposes, print the request to the console
-            // console.log(`===\n${request}\n===`);
-            const response = await openai.createCompletion({
-                model: MODEL,
-                prompt: request,
-                temperature: TEMPERATURE,
-                max_tokens: MAX_TOKENS,
-                stop: ["\nHuman:", "\nAI:"],
-            });
-            // Send the response back to the user
-            let reply = "";
-            if (!response.data) {
-                reply =
-                    "An error has occured! Check https://status.openai.com to see if the API is down.";
+                // Send a typing action to the user
+                ctx.sendChatAction("typing");
+                // Send the message to OpenAI
+                // For debugging purposes, print the request to the console
+                // console.log(`===\n${request}\n===`);
+                const response = await openai.createCompletion({
+                    model: MODEL,
+                    prompt: request,
+                    temperature: TEMPERATURE,
+                    top_p: PRIORITY,
+                    n: 1,
+                    echo: true,
+                    max_tokens: MAX_TOKENS,
+                    stop: ["\nHuman:", "\nAI:"],
+                });
+                // Send the response back to the user
+                let reply = "";
+                if (!response.data) {
+                    reply =
+                        "An error has occured! Check https://status.openai.com to see if the API is down.";
+                }
+                if (response.data.choices[0].text === "") {
+                    reply = "I don't know what to say!";
+                } else {
+                    reply = response.data.choices[0].text as string;
+                }
+                // Send the response to the user
+                reply = reply.trim();
+                ctx.reply(reply);
+                db.run(
+                    "UPDATE users SET message_count = message_count + 1 WHERE user_id = ?",
+                    [user_id]
+                );
+                // Add a whitespace to the beginning of the reply to make it look better
+                reply = ` ${reply}`;
+                let new_chat_messages = "";
+                // If the user is new, add the intro message
+                if (chat_messages === "") {
+                    new_chat_messages = `${intro}\nHuman: ${message}\nAI:${reply}`;
+                } else {
+                    new_chat_messages = `${chat_messages}\nHuman: ${message}\nAI:${reply}`;
+                }
+                db.run("UPDATE users SET chat_messages = ? WHERE user_id = ?", [
+                    new_chat_messages,
+                    user_id,
+                ]);
             }
-            if (response.data.choices[0].text === "") {
-                reply = "I don't know what to say!";
-            } else {
-                reply = response.data.choices[0].text as string;
-            }
-            // Send the response to the user
-            reply = reply.trim();
-            ctx.reply(reply);
-            db.run(
-                "UPDATE users SET message_count = message_count + 1 WHERE user_id = ?",
-                [user_id]
-            );
-            // Add a whitespace to the beginning of the reply to make it look better
-            reply = ` ${reply}`;
-            let new_chat_messages = "";
-            // If the user is new, add the intro message
-            if (chat_messages === "") {
-                new_chat_messages = `${intro}\nHuman: ${message}\nAI:${reply}`;
-            } else {
-                new_chat_messages = `${chat_messages}\nHuman: ${message}\nAI:${reply}`;
-            }
-            db.run("UPDATE users SET chat_messages = ? WHERE user_id = ?", [
-                new_chat_messages,
-                user_id,
-            ]);
         }
     );
 });
