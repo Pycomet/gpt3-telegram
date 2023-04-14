@@ -13,7 +13,7 @@ import { schedule } from "node-cron";
 import pkg from "sqlite3";
 const { Database } = pkg;
 
-const LIMIT = 50; // Message limit - resets every midnight UTC
+const LIMIT = 10; // Message limit - resets every midnight UTC
 const TIMEOUT = 60; // TODO: Timeout in minutes
 
 const MAX_TOKENS = 200;
@@ -263,6 +263,9 @@ bot.command("ask", async (ctx) => {
                     model: MODEL,
                     prompt: request,
                     // temperature: TEMPERATURE,
+                    top_p: 0.1,
+                    n: 1,
+                    echo: true,
                     // max_tokens: MAX_TOKENS,
                     stop: ["\nHuman:", "\nAI:", "stop"],
                 });
